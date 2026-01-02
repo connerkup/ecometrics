@@ -12,8 +12,8 @@ Get up and running with the EcoMetrics BI Portfolio in minutes!
 
 ### 1. Clone and Navigate
 ```bash
-git clone https://github.com/connerkup/bi-portfolio
-cd bi-portfolio
+git clone https://github.com/connerkup/ecometrics
+cd ecometrics
 ```
 
 ### 2. Run Setup Script
@@ -86,7 +86,7 @@ streamlit run Home.py
 
 ### 📁 Project Structure
 ```
-bi-portfolio/
+ecometrics/
 ├── src/                    # Python package
 │   └── packagingco_insights/
 │       ├── analysis/       # ESG & Finance analyzers

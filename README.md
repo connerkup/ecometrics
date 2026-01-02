@@ -104,8 +104,8 @@ A comprehensive business intelligence platform for Environmental, Social, and Go
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/bi-portfolio.git
-   cd bi-portfolio
+   git clone https://github.com/connerkup/ecometrics.git
+   cd ecometrics
    ```
 
 2. **Install dependencies**:
