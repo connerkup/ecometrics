@@ -75,7 +75,10 @@ class DuckDBConnection(ExperimentalBaseConnection[duckdb.DuckDBPyConnection]):
         @cache_data(ttl=ttl)
         def _query(query: str, **kwargs) -> pd.DataFrame:
             cursor = self.cursor()
-            cursor.execute(query, **kwargs)
+            if 'params' in kwargs:
+                cursor.execute(query, kwargs['params'])
+            else:
+                cursor.execute(query)
             return cursor.df()
         
         return _query(query, **kwargs)
@@ -321,6 +324,134 @@ def load_supply_chain_data() -> Tuple[pd.DataFrame, str]:
         except Exception as e2:
             logger.error(f"Failed to load supply chain data: {e2}")
             return pd.DataFrame(), f"Error loading supply chain data: {e2}"
+
+
+def load_company_data(company_id: str, data_type: str) -> Tuple[pd.DataFrame, str]:
+    """
+    Load data for a specific company and data type.
+    
+    Args:
+        company_id: Company identifier
+        data_type: Type of data ('esg', 'finance', 'supply_chain')
+    
+    Returns:
+        Tuple of (DataFrame, status_message)
+    """
+    try:
+        connector = get_data_connector()
+        
+        # Try to load from company-specific fact table first
+        query = f"""
+        SELECT * FROM fact_{data_type}_monthly 
+        WHERE company_id = ?
+        ORDER BY date DESC
+        """
+        df = connector.query(query, params=[company_id])
+        
+        if not df.empty:
+            return df, f"Loaded from fact_{data_type}_monthly for {company_id}"
+        
+        # Fallback to company-specific staging table
+        query = f"""
+        SELECT * FROM stg_{data_type}_data 
+        WHERE company_id = ?
+        ORDER BY date DESC
+        """
+        df = connector.query(query, params=[company_id])
+        
+        if not df.empty:
+            return df, f"Loaded from stg_{data_type}_data for {company_id}"
+        
+        # Fallback to generic table (for backward compatibility)
+        query = f"""
+        SELECT * FROM fact_{data_type}_monthly 
+        ORDER BY date DESC
+        """
+        df = connector.query(query)
+        return df, f"Loaded from generic fact_{data_type}_monthly (fallback)"
+        
+    except Exception as e:
+        logger.error(f"Failed to load {data_type} data for {company_id}: {e}")
+        return pd.DataFrame(), f"Error loading {data_type} data: {e}"
+
+
+def load_company_esg_data(company_id: str) -> Tuple[pd.DataFrame, str]:
+    """Load ESG data for a specific company."""
+    return load_company_data(company_id, 'esg')
+
+
+def load_company_finance_data(company_id: str) -> Tuple[pd.DataFrame, str]:
+    """Load financial data for a specific company."""
+    return load_company_data(company_id, 'finance')
+
+
+def load_company_supply_chain_data(company_id: str) -> Tuple[pd.DataFrame, str]:
+    """Load supply chain data for a specific company."""
+    return load_company_data(company_id, 'supply_chain')
+
+
+def get_company_summary_stats(company_id: str) -> Dict[str, Any]:
+    """
+    Get summary statistics for a specific company.
+    
+    Args:
+        company_id: Company identifier
+    
+    Returns:
+        Dictionary with summary statistics
+    """
+    try:
+        connector = get_data_connector()
+        
+        # Get data for all types
+        esg_data, _ = load_company_esg_data(company_id)
+        finance_data, _ = load_company_finance_data(company_id)
+        supply_data, _ = load_company_supply_chain_data(company_id)
+        
+        stats = {
+            'company_id': company_id,
+            'esg_records': len(esg_data) if not esg_data.empty else 0,
+            'finance_records': len(finance_data) if not finance_data.empty else 0,
+            'supply_chain_records': len(supply_data) if not supply_data.empty else 0,
+            'total_records': 0,
+            'date_range': {},
+            'key_metrics': {}
+        }
+        
+        # Calculate total records
+        stats['total_records'] = stats['esg_records'] + stats['finance_records'] + stats['supply_chain_records']
+        
+        # Get date ranges
+        for data_type, data in [('esg', esg_data), ('finance', finance_data), ('supply_chain', supply_data)]:
+            if not data.empty and 'date' in data.columns:
+                dates = pd.to_datetime(data['date'])
+                stats['date_range'][data_type] = {
+                    'start': dates.min().strftime('%Y-%m-%d'),
+                    'end': dates.max().strftime('%Y-%m-%d'),
+                    'days': (dates.max() - dates.min()).days
+                }
+        
+        # Calculate key metrics
+        if not finance_data.empty:
+            if 'total_revenue' in finance_data.columns:
+                stats['key_metrics']['total_revenue'] = finance_data['total_revenue'].sum()
+            elif 'revenue' in finance_data.columns:
+                stats['key_metrics']['total_revenue'] = finance_data['revenue'].sum()
+        
+        if not esg_data.empty:
+            if 'total_emissions_kg_co2' in esg_data.columns:
+                stats['key_metrics']['total_emissions'] = esg_data['total_emissions_kg_co2'].sum()
+            elif 'emissions_kg_co2' in esg_data.columns:
+                stats['key_metrics']['total_emissions'] = esg_data['emissions_kg_co2'].sum()
+        
+        return stats
+        
+    except Exception as e:
+        logger.error(f"Error getting company summary stats: {e}")
+        return {
+            'company_id': company_id,
+            'error': str(e)
+        }
 
 
 def initialize_sample_data_if_needed():

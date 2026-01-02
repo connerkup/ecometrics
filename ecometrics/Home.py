@@ -5,7 +5,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from streamlit import navigation
-from data_connector import check_dbt_availability, load_esg_data, load_finance_data, load_supply_chain_data
+from data_connector import (
+    check_dbt_availability, load_esg_data, load_finance_data, load_supply_chain_data,
+    load_company_esg_data, load_company_finance_data, load_company_supply_chain_data
+)
+from company_manager import CompanyManager
 import numpy as np
 from datetime import datetime, timedelta
 from color_config import (
@@ -64,6 +68,44 @@ st.markdown(f"""
 # Check dbt availability
 availability = check_dbt_availability()
 
+# Initialize company manager
+from data_connector import get_data_connector
+connector = get_data_connector()
+company_manager = CompanyManager(connector)
+
+# Company selection in sidebar
+with st.sidebar:
+    st.markdown("### 🏢 Company Selection")
+    
+    # Get available companies
+    companies = company_manager.get_companies()
+    
+    if companies:
+        # Add default option for backward compatibility
+        company_options = [{'company_id': 'packagingco', 'company_name': 'PackagingCo (Default)'}] + companies
+        
+        selected_company_display = st.selectbox(
+            "Select Company",
+            options=company_options,
+            format_func=lambda x: f"{x['company_name']} ({x['company_id']})",
+            index=0
+        )
+        
+        selected_company_id = selected_company_display['company_id']
+        
+        # Show company info
+        if selected_company_id != 'packagingco':
+            st.info(f"**Industry:** {selected_company_display.get('industry', 'N/A')}")
+            
+            # Show quick stats
+            from data_connector import get_company_summary_stats
+            stats = get_company_summary_stats(selected_company_id)
+            if 'error' not in stats:
+                st.write(f"**Records:** {stats.get('total_records', 0):,}")
+    else:
+        st.info("No companies configured. Using default PackagingCo data.")
+        selected_company_id = 'packagingco'
+
 # Main content
 st.markdown('<h1 class="main-header">🌱 EcoMetrics Dashboard</h1>', unsafe_allow_html=True)
 st.markdown('<p class="sub-header">Integrated Business Intelligence: Financial Performance vs Sustainability Impact</p>', unsafe_allow_html=True)
@@ -75,6 +117,7 @@ if availability['available']:
         <h4>✅ Data Pipeline Connected</h4>
         <p>{availability['message']}</p>
         <small>Database: {availability['db_path']}</small>
+        <br><small><strong>Company:</strong> {selected_company_id}</small>
     </div>
     """, unsafe_allow_html=True)
 else:
@@ -87,13 +130,20 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-# Load all data for cross-functional analysis
+# Load data based on selected company
 @st.cache_data(ttl=3600)
-def load_all_dashboard_data():
-    """Load and combine data from all sources for dashboard"""
-    esg_data, esg_status = load_esg_data()
-    finance_data, finance_status = load_finance_data()
-    supply_data, supply_status = load_supply_chain_data()
+def load_company_dashboard_data(company_id: str):
+    """Load data for a specific company"""
+    if company_id == 'packagingco':
+        # Use original loading functions for backward compatibility
+        esg_data, esg_status = load_esg_data()
+        finance_data, finance_status = load_finance_data()
+        supply_data, supply_status = load_supply_chain_data()
+    else:
+        # Use company-specific loading functions
+        esg_data, esg_status = load_company_esg_data(company_id)
+        finance_data, finance_status = load_company_finance_data(company_id)
+        supply_data, supply_status = load_company_supply_chain_data(company_id)
     
     return {
         'esg': {'data': esg_data, 'status': esg_status},
@@ -101,8 +151,8 @@ def load_all_dashboard_data():
         'supply': {'data': supply_data, 'status': supply_status}
     }
 
-with st.spinner("Loading integrated dashboard data..."):
-    all_data = load_all_dashboard_data()
+with st.spinner(f"Loading data for {selected_company_id}..."):
+    all_data = load_company_dashboard_data(selected_company_id)
 
 # Sidebar filters for cross-functional analysis
 with st.sidebar:
