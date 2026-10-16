@@ -68,6 +68,31 @@ class SupplyChainAnalyzer:
             self.data['defect_rate_pct'] = (
                 self.data['defect_quantity'] / self.data['order_quantity'] * 100
             )
+
+        if 'quality_status' not in self.data.columns:
+            self.data['quality_status'] = pd.cut(
+                self.data['defect_rate_pct'],
+                bins=[-np.inf, 2, 5, np.inf],
+                labels=['Excellent', 'Acceptable', 'Poor']
+            )
+
+        if 'delivery_performance' not in self.data.columns:
+            # We calculate an on_time_rate proxy if not present to reuse categories logic
+            if 'on_time_delivery' in self.data.columns:
+                self.data['delivery_performance'] = pd.cut(
+                    self.data['on_time_delivery'] * 100,
+                    bins=[-np.inf, 70, 85, 95, np.inf],
+                    labels=['Poor', 'Fair', 'Good', 'Excellent']
+                )
+            else:
+                 self.data['delivery_performance'] = 'Good'
+
+        if 'sustainability_category' not in self.data.columns:
+            self.data['sustainability_category'] = pd.cut(
+                self.data['sustainability_rating'],
+                bins=[-np.inf, 3.0, 4.0, 4.5, np.inf],
+                labels=['Poor', 'Fair', 'Good', 'Excellent']
+            )
     
     def get_supplier_performance_summary(self) -> pd.DataFrame:
         """
@@ -584,10 +609,11 @@ def generate_supply_chain_report(data: pd.DataFrame) -> str:
     report.append("EXECUTIVE SUMMARY")
     report.append("-" * 20)
     
-    total_orders = len(data)
-    total_value = data['order_value'].sum()
-    on_time_rate = data['on_time_delivery'].mean() * 100
-    avg_defect_rate = data['defect_rate_pct'].mean()
+    analyzer = SupplyChainAnalyzer(data)
+    total_orders = len(analyzer.data)
+    total_value = analyzer.data['order_value'].sum()
+    on_time_rate = analyzer.data['on_time_delivery'].mean() * 100
+    avg_defect_rate = analyzer.data['defect_rate_pct'].mean()
     
     report.append(f"Total Orders: {total_orders:,}")
     report.append(f"Total Order Value: ${total_value:,.0f}")
