@@ -251,7 +251,7 @@ class TestSalesForecaster:
         """Test handling of insufficient data for forecasting."""
         # Create minimal data (less than 3 months)
         minimal_data = pd.DataFrame({
-            'date': pd.date_range('2023-01-01', periods=2, freq='M'),
+            'date': pd.date_range('2023-01-01', periods=2, freq='ME'),
             'product_line': ['Test Product'] * 2,
             'revenue': [100000, 110000],
             'units_sold': [1000, 1100]

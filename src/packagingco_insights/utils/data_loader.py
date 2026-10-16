@@ -11,20 +11,24 @@ from pathlib import Path
 import numpy as np
 
 
-def connect_to_database(db_path: str = "data/processed/portfolio.duckdb") -> Optional[duckdb.DuckDBPyConnection]:
+def connect_to_database(db_path: str = "data/processed/portfolio.duckdb", create_if_missing: bool = False) -> Optional[duckdb.DuckDBPyConnection]:
     """
     Connect to the DuckDB database.
     
     Args:
         db_path: Path to the DuckDB database file
+        create_if_missing: If True, creates the database directory and file if it doesn't exist
     
     Returns:
-        DuckDB connection object or None if database doesn't exist
+        DuckDB connection object or None if database doesn't exist and create_if_missing is False
     """
     try:
         # Check if database file exists
         if not os.path.exists(db_path):
-            return None
+            if create_if_missing:
+                os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            else:
+                return None
             
         # Connect to DuckDB
         conn = duckdb.connect(db_path)
@@ -157,14 +161,14 @@ def create_sample_esg_data() -> pd.DataFrame:
     except Exception as e:
         # Return minimal sample data if processing fails
         return pd.DataFrame({
-            'month': pd.date_range('2023-01-01', periods=12, freq='M'),
+            'month': pd.date_range('2023-01-01', periods=12, freq='ME'),
             'product_line': ['Product A'] * 12,
             'total_emissions_kg_co2': [1000 + i*100 for i in range(12)],
             'avg_recycled_material_pct': [75 + i*2 for i in range(12)],
             'avg_efficiency_rating': [8.0 + i*0.1 for i in range(12)],
             'avg_quality_score': [9.0 + i*0.05 for i in range(12)],
             'avg_waste_reduction_pct': [20 + i*1 for i in range(12)],
-            'date': pd.date_range('2023-01-01', periods=12, freq='M')
+            'date': pd.date_range('2023-01-01', periods=12, freq='ME')
         })
 
 
@@ -208,14 +212,14 @@ def create_sample_finance_data() -> pd.DataFrame:
     except Exception as e:
         # Return minimal sample data if processing fails
         return pd.DataFrame({
-            'month': pd.date_range('2023-01-01', periods=12, freq='M'),
+            'month': pd.date_range('2023-01-01', periods=12, freq='ME'),
             'product_line': ['Product A'] * 12,
             'total_revenue': [100000 + i*10000 for i in range(12)],
             'total_cost': [70000 + i*7000 for i in range(12)],
             'total_profit': [30000 + i*3000 for i in range(12)],
             'total_profit_margin': [30 + i*0.5 for i in range(12)],
             'total_quantity': [1000 + i*100 for i in range(12)],
-            'date': pd.date_range('2023-01-01', periods=12, freq='M')
+            'date': pd.date_range('2023-01-01', periods=12, freq='ME')
         })
 
 

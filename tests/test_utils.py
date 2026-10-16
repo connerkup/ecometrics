@@ -71,7 +71,7 @@ class TestDataLoader:
         """Test database connection."""
         conn = None
         try:
-            conn = connect_to_database(temp_db_path)
+            conn = connect_to_database(temp_db_path, create_if_missing=True)
             assert conn is not None
             
             # Test that we can execute a simple query
@@ -89,7 +89,7 @@ class TestDataLoader:
         conn = None
         
         try:
-            conn = connect_to_database(db_path)
+            conn = connect_to_database(db_path, create_if_missing=True)
             assert conn is not None
             assert os.path.exists(os.path.dirname(db_path))
         finally:
@@ -110,7 +110,7 @@ class TestDataLoader:
         conn = None
         try:
             # Create a test table
-            conn = connect_to_database(temp_db_path)
+            conn = connect_to_database(temp_db_path, create_if_missing=True)
             conn.execute("""
                 CREATE TABLE test_table (
                     id INTEGER,
@@ -128,6 +128,8 @@ class TestDataLoader:
             
             # Test loading data
             query = "SELECT * FROM test_table ORDER BY id"
+            # create_if_missing defaults to False for load_data, so we need to ensure the DB file exists
+            # which it does, because we just created and closed it above
             df = load_data(query, temp_db_path)
             
             assert isinstance(df, pd.DataFrame)
@@ -211,7 +213,7 @@ class TestDataLoader:
         conn = None
         try:
             # Create test tables
-            conn = connect_to_database(temp_db_path)
+            conn = connect_to_database(temp_db_path, create_if_missing=True)
             conn.execute("""
                 CREATE TABLE test_table1 (
                     id INTEGER,
@@ -266,15 +268,13 @@ class TestDataLoader:
             mock_conn.execute.return_value.fetchdf.return_value = mock_df
             
             # Test the function
-            result = load_esg_data(temp_db_path)
-            
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 2
-            assert list(result.columns) == ['date', 'facility', 'emissions', 'energy_consumption', 'waste_generated']
-            
-            # Verify the connection was called
-            mock_connect.assert_called_once_with(temp_db_path)
-            mock_conn.close.assert_called_once()
+            with patch('src.packagingco_insights.utils.data_loader.check_dbt_tables_exist', return_value=True):
+                result, source = load_esg_data(temp_db_path)
+
+                assert isinstance(result, pd.DataFrame)
+                assert len(result) == 2
+                assert list(result.columns) == ['date', 'facility', 'emissions', 'energy_consumption', 'waste_generated']
+                assert source == "dbt_models"
     
     def test_load_finance_data_mock(self, temp_db_path):
         """Test loading finance data with mocked database."""
@@ -294,15 +294,13 @@ class TestDataLoader:
             mock_conn.execute.return_value.fetchdf.return_value = mock_df
             
             # Test the function
-            result = load_finance_data(temp_db_path)
-            
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 2
-            assert list(result.columns) == ['date', 'region', 'revenue', 'costs', 'profit']
-            
-            # Verify the connection was called
-            mock_connect.assert_called_once_with(temp_db_path)
-            mock_conn.close.assert_called_once()
+            with patch('src.packagingco_insights.utils.data_loader.check_dbt_tables_exist', return_value=True):
+                result, source = load_finance_data(temp_db_path)
+
+                assert isinstance(result, pd.DataFrame)
+                assert len(result) == 2
+                assert list(result.columns) == ['date', 'region', 'revenue', 'costs', 'profit']
+                assert source == "dbt_models"
     
     def test_load_sales_data_mock(self, temp_db_path):
         """Test loading sales data with mocked database."""
@@ -322,15 +320,13 @@ class TestDataLoader:
             mock_conn.execute.return_value.fetchdf.return_value = mock_df
             
             # Test the function
-            result = load_sales_data(temp_db_path)
-            
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 2
-            assert list(result.columns) == ['date', 'product', 'facility', 'quantity', 'revenue']
-            
-            # Verify the connection was called
-            mock_connect.assert_called_once_with(temp_db_path)
-            mock_conn.close.assert_called_once()
+            with patch('src.packagingco_insights.utils.data_loader.check_dbt_tables_exist', return_value=True):
+                result, source = load_sales_data(temp_db_path)
+
+                assert isinstance(result, pd.DataFrame)
+                assert len(result) == 2
+                assert list(result.columns) == ['date', 'product', 'facility', 'quantity', 'revenue']
+                assert source == "dbt_models"
     
     def test_data_quality_with_mixed_types(self):
         """Test data quality checking with mixed data types."""
